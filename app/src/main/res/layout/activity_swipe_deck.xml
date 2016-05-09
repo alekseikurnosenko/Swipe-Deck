@@ -7,7 +7,6 @@
     android:id="@+id/swipeLayout"
     android:orientation="vertical">
 
-
     <com.daprlabs.cardstack.SwipeDeck
         android:id="@+id/swipe_deck"
         android:layout_width="match_parent"
@@ -16,8 +15,7 @@
         swipedeck:card_spacing="10dp"
         swipedeck:max_visible="3"
         swipedeck:render_above="true"
-        swipedeck:rotation_degrees="15"
-        swipedeck:opacity_end="0.2"/>
+        swipedeck:rotation_degrees="15"/>
 
     <Button
         android:id="@+id/button"
@@ -37,8 +35,6 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|right"
         android:text="swipe right" />
-
-
 
 </com.daprlabs.cardstack.SwipeFrameLayout>
 

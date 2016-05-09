@@ -1,271 +1,182 @@
 package com.daprlabs.cardstack;
 
-import android.animation.Animator;
 import android.util.Log;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
-import android.view.ViewPropertyAnimator;
-import android.view.animation.OvershootInterpolator;
 
 /**
  * Created by aaron on 4/12/2015.
  */
 public class SwipeListener implements View.OnTouchListener {
 
-    private float ROTATION_DEGREES = 15f;
-    float OPACITY_END = 0.33f;
+    private final int flingSlop;
+    private final int touchSlop;
+    private final GestureDetector gestureDetector;
+    private float rotationDegrees = 15f;
     private float initialX;
     private float initialY;
 
     private int mActivePointerId;
     private float initialXPress;
     private float initialYPress;
-    private ViewGroup parent;
     private float parentWidth;
-    private int paddingLeft;
 
     private View card;
-    SwipeCallback callback;
-    private boolean deactivated;
-    private View rightView;
-    private View leftView;
+    private SwipeCallback callback;
+    private boolean swipeable;
+    private boolean isDragging = true;
 
 
-    public SwipeListener(View card, final SwipeCallback callback, float initialX, float initialY, float rotation, float opacityEnd) {
+    public SwipeListener(View card, final SwipeCallback callback, int initialX, int initialY, float rotation) {
         this.card = card;
         this.initialX = initialX;
         this.initialY = initialY;
         this.callback = callback;
-        this.parent = (ViewGroup) card.getParent();
-        this.parentWidth = parent.getWidth();
-        this.ROTATION_DEGREES = rotation;
-        this.OPACITY_END = opacityEnd;
-        this.paddingLeft = ((ViewGroup) card.getParent()).getPaddingLeft();
+        this.parentWidth = ((ViewGroup) card.getParent()).getWidth();
+        this.rotationDegrees = rotation;
+
+        ViewConfiguration viewConfiguration = ViewConfiguration.get(card.getContext());
+        flingSlop = viewConfiguration.getScaledMinimumFlingVelocity();
+        touchSlop = viewConfiguration.getScaledTouchSlop();
+        gestureDetector = new GestureDetector(card.getContext(), new GestureListener());
     }
 
-    public SwipeListener(View card, final SwipeCallback callback, float initialX, float initialY, float rotation, float opacityEnd, int screenWidth) {
-        this.card = card;
-        this.initialX = initialX;
-        this.initialY = initialY;
-        this.callback = callback;
-        this.parent = (ViewGroup) card.getParent();
-        this.parentWidth = screenWidth;
-        this.ROTATION_DEGREES = rotation;
-        this.OPACITY_END = opacityEnd;
-        this.paddingLeft = ((ViewGroup) card.getParent()).getPaddingLeft();
-    }
-
-
-    private boolean click = true;
 
     @Override
     public boolean onTouch(View v, MotionEvent event) {
-        if (deactivated) return false;
-        switch (event.getAction() & MotionEvent.ACTION_MASK) {
+        // We got a recognized fling event, it would call listener by itself, stop here
+        boolean consumed = gestureDetector.onTouchEvent(event);
+        if (event.getAction() == MotionEvent.ACTION_MOVE) {
+            return false;
+        }
 
-            case MotionEvent.ACTION_DOWN:
-                click = true;
-                //gesture has begun
-                float x;
-                float y;
-                //cancel any current animations
-                v.clearAnimation();
+        return consumed;
+//        switch (event.getAction() & MotionEvent.ACTION_MASK) {
+//
+//            case MotionEvent.ACTION_DOWN:
+//                isDragging = false;
+//                mActivePointerId = event.getPointerId(0);
+//
+//
+//                break;
+//
+//            case MotionEvent.ACTION_MOVE:
+//                //gesture is in progress
+//
+//                final int pointerIndex = event.findPointerIndex(mActivePointerId);
+//                if (pointerIndex != 0) {
+//                    break;
+//                }
+//
+//                //calculate distance moved
+//                final float dx = event.getX(pointerIndex) - initialXPress;
+//                final float dy = event.getY(pointerIndex) - initialYPress;
+//
+//                // if touch deviated from original point too much, it's definitely not a click
+//                if (Math.abs(dx) + Math.abs(dy) > touchSlop) {
+//                    isDragging = true;
+//                }
+//
+//                if (!isDragging) {
+//                    return false;
+//                }
+//
+//                if (!swipeable) {
+//                    return false;
+//                }
+//
+//                float posX = card.getX() + dx;
+//                float posY = card.getY() + dy;
+//                card.setX(posX);
+//                card.setY(posY);
+//
+//                float distObjectX = posX - initialX;
+//                float rotation = rotationDegrees * 2.f * distObjectX / parentWidth;
+//                card.setRotation(rotation);
+//                callback.onCardMove(rotation);
+//                break;
+//
+//            case MotionEvent.ACTION_UP:
+//                if (isDragging) {
+//                    callback.onCardReset();
+//                } else {
+//                    callback.onCardClicked();
+//                }
+//                break;
+//
+//            default:
+//                return false;
+//        }
+//        return true;
+    }
 
-                mActivePointerId = event.getPointerId(0);
+    public void setSwipeable(boolean swipeable) {
+        this.swipeable = swipeable;
+    }
 
-                x = event.getX();
-                y = event.getY();
+    /*package*/ interface SwipeCallback {
+        void onCardSwipedLeft(float velocityX, float velocityY);
 
-                if(event.findPointerIndex(mActivePointerId) == 0) {
-                    callback.cardActionDown();
-                }
+        void onCardSwipedRight(float velocityX, float velocityY);
 
-                initialXPress = x;
-                initialYPress = y;
-                break;
+        void onCardClicked();
 
-            case MotionEvent.ACTION_MOVE:
-                //gesture is in progress
+        void onCardReset();
 
-                final int pointerIndex = event.findPointerIndex(mActivePointerId);
-                //Log.i("pointer index: " , Integer.toString(pointerIndex));
-                if(pointerIndex < 0 || pointerIndex > 0 ){
-                    break;
-                }
+        void onCardMove(float value);
+    }
 
-                final float xMove = event.getX(pointerIndex);
-                final float yMove = event.getY(pointerIndex);
 
-                //calculate distance moved
-                final float dx = xMove - initialXPress;
-                final float dy = yMove - initialYPress;
+    private class GestureListener extends GestureDetector.SimpleOnGestureListener {
 
-                //throw away the move in this case as it seems to be wrong
-                //TODO: figure out why this is the case
-                if((int)initialXPress == 0 && (int) initialYPress == 0){
-                    //makes sure the pointer is valid
-                    break;
-                }
-                //calc rotation here
-                float posX = card.getX() + dx;
-                float posY = card.getY() + dy;
-
-                //in this circumstance consider the motion a click
-                if (Math.abs(dx + dy) > 5) click = false;
-
-                card.setX(posX);
-                card.setY(posY);
-
-                //card.setRotation
-                float distobjectX = posX - initialX;
-                float rotation = ROTATION_DEGREES * 2.f * distobjectX / parentWidth;
-                card.setRotation(rotation);
-
-                if (rightView != null && leftView != null){
-                    //set alpha of left and right image
-                    float alpha = (((posX - paddingLeft) / (parentWidth * OPACITY_END)));
-                    //float alpha = (((posX - paddingLeft) / parentWidth) * ALPHA_MAGNITUDE );
-                    //Log.i("alpha: ", Float.toString(alpha));
-                    rightView.setAlpha(alpha);
-                    leftView.setAlpha(-alpha);
-                }
-
-                break;
-
-            case MotionEvent.ACTION_UP:
-                //gesture has finished
-                //check to see if card has moved beyond the left or right bounds or reset
-                //card position
-                checkCardForEvent();
-
-                if(event.findPointerIndex(mActivePointerId) == 0) {
-                    callback.cardActionUp();
-                }
-                //check if this is a click event and then perform a click
-                //this is a workaround, android doesn't play well with multiple listeners
-
-                if (click) v.performClick();
-                //if(click) return false;
-
-                break;
-
-            default:
+        @Override
+        public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
+            if (e1 == null || e2 == null) {
                 return false;
+            }
+                final float dx = e2.getX() - initialXPress;
+                final float dy = e2.getY() - initialYPress;
+            float posX = card.getX() + dx;
+            float posY = card.getY() + dy;
+            card.setX(posX);
+            card.setY(posY);
+
+            float distObjectX = posX - initialX;
+            float rotation = rotationDegrees * 2.f * distObjectX / parentWidth;
+            card.setRotation(rotation);
+            return true;
         }
-        return true;
-    }
 
-    public void checkCardForEvent() {
+        @Override
+        public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+            if (e1 == null || e2 == null) {
+                return false;
+            }
+            float dx = e2.getX() - e1.getX();
+            Log.d("TEMP", "onFling " + velocityX + " " + velocityY + " slop: " + flingSlop + " dx: " + dx + " touch:" +
+                    touchSlop);
+            double angle = Math.atan2(velocityY, velocityX) * 180 / Math.PI % 360;
+            angle = angle > 0 ? angle : angle + 360;
+            Log.d("TEMP", "Angle: " + angle);
+            if (angle < 45 || angle > 315) {
+                callback.onCardSwipedRight(velocityX, velocityY);
+                return true;
+            } else if (angle > 135 && angle < 225) {
+                callback.onCardSwipedLeft(velocityX, velocityY);
+                return true;
+            }
+            return false;
+        }
 
-        if (cardBeyondLeftBorder()) {
-            animateOffScreenLeft(160)
-                    .setListener(new Animator.AnimatorListener() {
-
-                        @Override
-                        public void onAnimationStart(Animator animation) {
-
-                        }
-
-                        @Override
-                        public void onAnimationEnd(Animator animation) {
-
-                            callback.cardOffScreen();
-                        }
-
-                        @Override
-                        public void onAnimationCancel(Animator animation) {
-
-                        }
-
-                        @Override
-                        public void onAnimationRepeat(Animator animation) {
-                        }
-                    });
-            callback.cardSwipedLeft();
-            this.deactivated = true;
-        } else if (cardBeyondRightBorder()) {
-            animateOffScreenRight(160)
-                    .setListener(new Animator.AnimatorListener() {
-
-                        @Override
-                        public void onAnimationStart(Animator animation) {
-
-                        }
-
-                        @Override
-                        public void onAnimationEnd(Animator animation) {
-                            callback.cardOffScreen();
-                        }
-
-                        @Override
-                        public void onAnimationCancel(Animator animation) {
-
-                        }
-
-                        @Override
-                        public void onAnimationRepeat(Animator animation) {
-
-                        }
-                    });
-            callback.cardSwipedRight();
-            this.deactivated = true;
-        } else {
-            resetCardPosition();
+        @Override
+        public boolean onDown(MotionEvent e) {
+            initialXPress = e.getX();
+            initialYPress = e.getY();
+            return true;
         }
     }
 
-    private boolean cardBeyondLeftBorder() {
-        //check if cards middle is beyond the left quarter of the screen
-        return (card.getX() + (card.getWidth() / 2) < (parentWidth / 4.f));
-    }
-
-    private boolean cardBeyondRightBorder() {
-        //check if card middle is beyond the right quarter of the screen
-        return (card.getX() + (card.getWidth() / 2) > ((parentWidth / 4.f) * 3));
-    }
-
-    private ViewPropertyAnimator resetCardPosition() {
-        if(rightView!=null)rightView.setAlpha(0);
-        if(leftView!=null)leftView.setAlpha(0);
-        return card.animate()
-                .setDuration(200)
-                .setInterpolator(new OvershootInterpolator(1.5f))
-                .x(initialX)
-                .y(initialY)
-                .rotation(0);
-    }
-
-    public ViewPropertyAnimator animateOffScreenLeft(int duration) {
-        return card.animate()
-                .setDuration(duration)
-                .x(-(parentWidth))
-                .y(0)
-                .rotation(-30);
-    }
-
-
-    public ViewPropertyAnimator animateOffScreenRight(int duration) {
-        return card.animate()
-                .setDuration(duration)
-                .x(parentWidth * 2)
-                .y(0)
-                .rotation(30);
-    }
-
-    public void setRightView(View image) {
-        this.rightView = image;
-    }
-
-    public void setLeftView(View image) {
-        this.leftView = image;
-    }
-
-    public interface SwipeCallback {
-        void cardSwipedLeft();
-        void cardSwipedRight();
-        void cardOffScreen();
-        void cardActionDown();
-        void cardActionUp();
-    }
 }

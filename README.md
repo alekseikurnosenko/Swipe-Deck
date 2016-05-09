@@ -167,17 +167,17 @@ Now we simply give our card deck an adapter and perhaps a callback from our Acti
 
         cardStack.setEventCallback(new SwipeDeck.SwipeEventCallback() {
             @Override
-            public void cardSwipedLeft(int position) {
+            public void onCardSwipedLeft(int position) {
                 Log.i("MainActivity", "card was swiped left, position in adapter: " + position);
             }
 
             @Override
-            public void cardSwipedRight(int position) {
+            public void onCardSwipedRight(int position) {
                 Log.i("MainActivity", "card was swiped right, position in adapter: " + position);
             }
 
             @Override
-            public void cardsDepleted() {
+            public void onCardsDepleted() {
                 Log.i("MainActivity", "no more cards");
             }
         });
